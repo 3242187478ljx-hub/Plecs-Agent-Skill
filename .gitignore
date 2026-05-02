@@ -1,0 +1,5 @@
+# 忽略私有模型文件夹，防止误上传到 GitHub
+my_private_models/
+
+# 忽略临时数据
+*.csv 
