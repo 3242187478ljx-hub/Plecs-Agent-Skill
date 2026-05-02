@@ -24,11 +24,13 @@
 - **开启 PLECS 控制通道 (必做)**：打开 PLECS Standalone -> 菜单栏 `Preferences` -> `General` 选项卡 -> 勾选 `RPC interface port` 并将其设置为 `1080`。
 
 ### 2. 接入 Claude Code (MCP 挂载)
-在你的终端中执行以下命令（请将路径替换为你克隆本项目的绝对路径）：
+在你的终端中执行以下命令（请务必将路径替换为你本机的绝对路径）：
 ```bash
 claude mcp add plecs-skill python /你的绝对路径/Plecs-Agent-Skill/mcp_server.py
 ```
-挂载成功后，Claude 将永久获得操作 PLECS 的原生工具。
+*💡 原理解析：执行此命令后，终端会提示 `Added stdio MCP server...` 并修改本地的 `~/.claude.json` 配置文件。这意味着该技能已经被系统级写入 Claude 的主板。*
+
+**⚠️ 注意：挂载成功后，请输入 `/exit` 退出当前会话，并重新运行 `claude` 重启以使配置生效！**
 
 ### 3. 创建你的“私密机房”
 为了保护你的核心研究成果（如复杂的 APF 控制系统或 Buck 变换器闭环模型），请在本项目根目录下手动创建私有文件夹：
