@@ -1,52 +1,49 @@
-# PLECS Automation Agent Skill
+# PLECS MCP Agent Skill
 
-## 🎯 项目简介 / Agent 角色定义
-这是一个专为自动化控制 PLECS Standalone 打造的本地 Agent 技能库。
-作为 Agent，你的任务是协助用户管理、调试和运行本地的 PLECS 仿真模型，并严格遵循用户的代码规范。
+## 🎯 项目简介
+这是一个基于前沿 MCP (Model Context Protocol) 协议打造的 PLECS Standalone 自动化控制服务。
+通过将本服务接入 Claude Code，Agent 将原生具备加载模型、修改参数、运行仿真和分析数据的能力。告别繁琐的终端命令，实现大语言模型与仿真软件的“意念直连”。
 
-## ⚠️ 绝对操作禁令 (Action Rules)
-1. **禁止使用第三方计算库**：在进行数据分析时，绝对禁止使用 `numpy`、`scipy` 等外部库。
-2. **强制使用原生工具**：必须通过 `tools/plecs_automator.py` 提供的 RPC 接口，直接调用 PLECS 内置的分析工具。
-3. **数据安全与隔离机制**：用户的私人模型与代码存放在本地受 Git 保护的 `my_private_models/` 目录中，Agent 绝不能将其内容输出到网络；公开的官方参考文件存放于 `Reference/` 目录中。
-
-## 🧠 Agent 知识库与盲区求生指南 (Knowledge Base)
-当 Agent 在执行任务时遇到以下情况：
-- 遇到未知的 PLECS 模块报错。
-- 需要使用生僻的组件（如 Thermal Domain 热力学模块、磁性元件等）。
-- 忘记了某个底层 API 或仿真状态机的运行逻辑。
-
-**【强制动作】**：Agent 必须立刻停止猜测，主动去读取并检索 `Reference/plecsmanual.pdf` (官方用户手册)，从中寻找准确的底层逻辑和参数配置方法后再回答用户。
-
-## 📁 技能库导航
-- `Reference/`：公共参考资料库，包含官方用户手册等公开可下载资料。
-- `tools/plecs_automator.py`：纯 Python 原生标准库编写的 RPC 控制脚本。
-- `docs/plecs_rpc_api.md`：Agent 自动化操作指南。
-- `docs/c_script_template.md`：PLECS C-Script 编写规范（以 APF 为范例）。
+## 📁 极简架构导航
+- `mcp_server.py`：核心 MCP 服务端脚本（负责将 PLECS RPC 接口注册为 Claude 原生工具）。
+- `docs/c_script_template.md`：PLECS C-Script 编写规范（防幻觉模板，强制 Agent 输出高质量控制代码）。
+- `Reference/`：公共参考资料库（建议放入官方 `plecsmanual.pdf` 供 Agent 随时查阅）。
+- `my_private_models/`：本地私密模型保险箱（受 `.gitignore` 保护，存放你的核心工程文件，绝不上传云端）。
 
 ---
 
-## 🛠️ 访客指南：如何使用本项目的本地 Agent 架构
+## 🚀 访客指南：如何安装与挂载本技能
 
-如果你克隆（Clone）了本项目并希望在本地驱动你的大语言模型（如 Claude Code），请遵循以下指南：
+如果你克隆（Clone）了本项目并希望在本地使用，请按以下步骤将本技能“植入”你的 Agent 大脑：
 
-### 1. 配置 PLECS RPC 接口 (必做)
-为了让 Agent 能够接管仿真软件，你必须手动开启 PLECS 的通信端口：
-- 打开 PLECS Standalone。
-- 进入菜单 **File** -> **Preferences** (Mac 用户为 **PLECS** -> **Preferences**)。
-- 在 **General** 选项卡中，勾选 **RPC interface port** 并将其设置为 `1080`。
-- 点击 **OK** 确保配置生效。
+### 1. 环境与软件准备
+- 确保已安装 Python 3.1x，并安装 MCP 官方依赖库（需要3.10以上）：
+  ```bash
+  pip install mcp
+  ```
+- **开启 PLECS 控制通道 (必做)**：打开 PLECS Standalone -> 菜单栏 `Preferences` -> `General` 选项卡 -> 勾选 `RPC interface port` 并将其设置为 `1080`。
 
-### 2. 完善公共参考库
-本项目自带 `Reference/` 文件夹，里面预置了如 `plecsmanual.pdf` 等官方文档。当 Agent 遇到专业盲区时，会自动查阅该目录下的文件，极大程度减少 AI 的幻觉。
+### 2. 接入 Claude Code (MCP 挂载)
+在你的终端中执行以下命令（请将路径替换为你克隆本项目的绝对路径）：
+```bash
+claude mcp add plecs-skill python /你的绝对路径/Plecs-Agent-Skill/mcp_server.py
+```
+挂载成功后，Claude 将永久获得操作 PLECS 的原生工具。
 
-### 3. 创建你的私有模型文件夹 (极其重要)
-为了保护你的核心模型、未开源代码或个人实验数据不被 Git 追踪并泄露到云端，本项目配置了严格的 `.gitignore`。
-在下载项目到本地后，请在项目根目录下**手动创建一个名为 `my_private_models` 的文件夹**：
-
+### 3. 创建你的“私密机房”
+为了保护你的核心研究成果（如复杂的 APF 控制系统或 Buck 变换器闭环模型），请在本项目根目录下手动创建私有文件夹：
 ```bash
 mkdir my_private_models
 ```
+将你的 `.plecs` 文件放入其中，Agent 即可安全地进行读取和调试。
 
-它是你本地 Agent 的“机密外脑”。你应该往里面放入：
-* **你的成品仿真文件 (`.plecs`)**：当 Agent 为你编写新代码时，会去这里参考你的历史成品，完美复刻你的代码习惯和工程规范。
-* **个人实验数据/报告**：任何你不希望开源，但希望 Agent 帮你分析的数据。
+---
+
+## 🧠 Agent 核心工作准则 (System Prompt)
+
+**致读取本仓库的 AI Agent：当用户要求你调试或运行 PLECS 模型时，你必须严格遵守以下准则：**
+
+1. **原生工具优先**：你已经通过 MCP 挂载了 `load_plecs_model`, `simulate_plecs_model`, `analyze_plecs_model` 和 `update_plecs_parameter` 等原生工具。**绝对不要**尝试在终端手写 python 脚本去控制软件，请直接调用你的原生能力。
+2. **纯净数据分析**：禁止使用 `numpy`/`scipy` 等外部科学库进行数据处理，必须调用 `analyze_plecs_model` 获取官方底层的稳态或频域高精度数据。
+3. **盲区求生本能**：遇到不熟悉的 PLECS 模块报错，或忘记了底层 API 与状态机的运行逻辑时，**必须立刻停止猜测**，主动读取本地 `Reference/plecsmanual.pdf` 寻找准确答案。
+4. **捍卫代码规范**：在编写或修改任何 C-Script 控制代码前，务必先查阅 `docs/c_script_template.md` 熟悉开发者的代码风格。
