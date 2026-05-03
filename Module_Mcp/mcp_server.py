@@ -10,13 +10,28 @@ import uuid
 import socket
 import pickle
 import hashlib
+import os
+import sys
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
 from pathlib import Path
 from collections import deque
 import threading
-import queue
+
+# ==================== 路径与模块寻址 ====================
+# 获取当前 mcp_server.py 所在目录 (module_mcp)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# 获取项目根目录
+BASE_DIR = os.path.dirname(CURRENT_DIR)
+# 将根目录加入系统路径，确保能跨模块导入 module_logger 和 module_rag
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
+
+# 预设 mcp_cache 文件夹
+CACHE_DIR = os.path.join(CURRENT_DIR, "mcp_cache")
+os.makedirs(CACHE_DIR, exist_ok=True)
+# ========================================================
 
 # MCP 协议相关
 try:
@@ -36,13 +51,13 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 try:
-    from rag_knowledge import PlecsRAG
+    from module_rag.rag_knowledge import PlecsRAG
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
 
 try:
-    from logger import SimulationLogger
+    from module_logger.logger import get_logger
     LOGGER_AVAILABLE = True
 except ImportError:
     LOGGER_AVAILABLE = False
@@ -216,14 +231,14 @@ class PlecsMCPEnhanced:
             except Exception as e:
                 print(f"⚠ RAG 初始化失败: {e}")
         
-        # 初始化日志
+        # 初始化日志 (对接 module_logger 模块)
         self.logger = None
         if LOGGER_AVAILABLE and self.config.get("logging_enabled", True):
             try:
-                self.logger = SimulationLogger()
-                print("✓ 日志模块已初始化")
+                self.logger = get_logger()
+                print("✓ 日志模块已加载")
             except Exception as e:
-                print(f"⚠ 日志模块初始化失败: {e}")
+                print(f"⚠ 日志模块加载失败: {e}")
         
         # 加载预设
         self._load_presets()
@@ -243,7 +258,7 @@ class PlecsMCPEnhanced:
         print(f"✓ PLECS MCP Server 已启动 (Session: {self.session_id[:8]})")
     
     def _load_config(self, config_path: str = None) -> Dict:
-        """加载配置"""
+        """加载配置 (文件落盘指向 cache 目录)"""
         default_config = {
             "plecs_host": "localhost",
             "plecs_port": 1080,
@@ -253,8 +268,8 @@ class PlecsMCPEnhanced:
             "cache_enabled": True,
             "max_retries": 3,
             "retry_delay": 1.0,
-            "presets_file": "presets.json",
-            "state_file": "session_state.pkl"
+            "presets_file": os.path.join(CACHE_DIR, "presets.json"),
+            "state_file": os.path.join(CACHE_DIR, "session_state.pkl")
         }
         
         if config_path and Path(config_path).exists():
@@ -266,7 +281,7 @@ class PlecsMCPEnhanced:
     
     def _load_presets(self):
         """加载预设配置"""
-        presets_file = Path(self.config.get("presets_file", "presets.json"))
+        presets_file = Path(self.config.get("presets_file"))
         if presets_file.exists():
             try:
                 with open(presets_file, 'r') as f:
@@ -284,7 +299,7 @@ class PlecsMCPEnhanced:
     
     def _save_presets(self):
         """保存预设配置"""
-        presets_file = Path(self.config.get("presets_file", "presets.json"))
+        presets_file = Path(self.config.get("presets_file"))
         try:
             data = {}
             for name, preset in self.presets.items():
