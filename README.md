@@ -1,14 +1,17 @@
 # PLECS MCP Agent Skill
 
+> **About**: 用于指导 AI Agent 自动化操作与调试 PLECS 仿真文件的专属技能库。
+
 ## 🎯 项目简介
-这是一个基于前沿 MCP (Model Context Protocol) 协议打造的 PLECS Standalone 自动化控制服务。
-通过将本服务接入 Claude Code，Agent 将原生具备加载模型、修改参数、运行仿真和分析数据的能力。告别繁琐的终端命令，实现大语言模型与仿真软件的“意念直连”。
+
+这是一个基于前沿 MCP (Model Context Protocol) 协议打造的 PLECS Standalone 自动化控制服务。通过将本服务接入 Claude Code，Agent 将原生具备加载模型、修改参数、运行仿真和分析数据的能力。告别繁琐的终端命令，实现大语言模型与仿真软件的“意念直连”。
 
 ## 📁 极简架构导航
-- `mcp_server.py`：核心 MCP 服务端脚本（负责将 PLECS RPC 接口注册为 Claude 原生工具）。
-- `docs/c_script_template.md`：PLECS C-Script 编写规范（防幻觉模板，强制 Agent 输出高质量控制代码）。
-- `Reference/`：公共参考资料库（建议放入官方 `plecsmanual.pdf` 供 Agent 随时查阅）。
-- `my_private_models/`：本地私密模型保险箱（受 `.gitignore` 保护，存放你的核心工程文件，绝不上传云端）。
+
+* `mcp_server.py`：核心 MCP 服务端脚本（负责将 PLECS RPC 接口注册为 Claude 原生工具）。
+* `docs/c_script_template.md`：PLECS C-Script 编写规范（防幻觉模板，强制 Agent 输出高质量控制代码）。
+* `Reference/`：公共参考资料库（建议放入官方 `plecsmanual.pdf` 供 Agent 随时查阅）。
+* `my_private_models/`：本地私密模型保险箱（受 `.gitignore` 保护，存放你的核心工程文件，绝不上传云端）。
 
 ---
 
@@ -17,52 +20,122 @@
 为了保障底层环境的绝对干净，并确保 Claude 的内置服务不崩溃，请严格按照以下标准化流程将本技能“植入”你的 Agent 大脑：
 
 ### 1. 环境与底层依赖准备
+
 除了必须开启的仿真软件接口外，你需要确保系统底层组件的完整：
-- **开启 PLECS 控制通道 (必做)**：打开 PLECS Standalone -> 菜单栏 `Preferences` -> `General` 选项卡 -> 勾选 `RPC interface port` 并将其设置为 `1080`。
-- **配置 Claude 底层环境 (重要)**：Claude Code 自身的部分内置模块（如历史记忆）强依赖于 `Node.js` 和 `Bun`。若你使用 macOS，强烈建议通过 Homebrew 提前装好它们以防报错：
-  ```bash
-  brew install node
-  brew install bun
-  ```
+
+* **开启 PLECS 控制通道 (必做)**：打开 PLECS Standalone -> 菜单栏 `Preferences` -> `General` 选项卡 -> 勾选 `RPC interface port` 并将其设置为 `1080`。
+* **配置 Claude 底层环境 (重要)**：Claude Code 自身的部分内置模块（如历史记忆）强依赖于 Node.js 和 Bun。若你使用 macOS，强烈建议通过 Homebrew 提前装好它们以防报错：
+
+```bash
+brew install node
+brew install bun
+```
 
 ### 2. 创建独立运行环境与安装依赖
-为了不污染系统的全局 Python，且防止后续 Agent 找不到 `mcp` 库，**本工程建议使用虚拟环境**。请在项目根目录下依次执行：
+
+为了不污染你系统的全局 Python，且防止后续 Agent 找不到 mcp 库，**本工程要求使用虚拟环境**。请在项目根目录下依次执行：
+
 ```bash
-# 1. 创建名为 .venv 的虚拟环境 (需 Python 3.10+)
 python3 -m venv .venv
-
-# 2. 激活虚拟环境 (Windows 用户请使用 .venv\Scripts\activate)
 source .venv/bin/activate
-
-# 3. 安装mcp包
 pip install mcp
 ```
 
-### 3. 接入 Claude Code (绝对路径挂载)
-由于 Claude 在底层调用时不会自动识别你的虚拟环境，**必须**使用虚拟环境内部 Python 的绝对路径来进行“挂载”。
+*(可选) RAG 知识库依赖：*
+```bash
+pip install chromadb sentence-transformers PyPDF2
+```
 
-在你的终端中执行以下命令（⚠️ **务必将 `/你的绝对路径/` 替换为你本机的实际路径**）：
+### 3. 初始化 RAG 知识库（强烈推荐）
+
+如果你在上一步安装了 RAG 依赖，**必须**执行初始化命令，让程序解析手册并建立本地向量数据库。请确保 `Reference/` 目录下已有官方的 `plecsmanual.pdf`，然后在激活的虚拟环境中执行：
+
+```bash
+python -c "from rag_knowledge import PlecsRAG; rag = PlecsRAG(); rag.index_documents(['Reference/plecsmanual.pdf'])"
+```
+
+### 4. 接入 Claude Code (绝对路径挂载)
+
+由于 Claude 在底层调用时不会自动识别你的虚拟环境，你必须使用虚拟环境内部 Python 的绝对路径来进行“硬挂载”。 在你的终端中执行以下命令（⚠️ 务必将 `/你的绝对路径/` 替换为你本机的实际路径）：
+
 ```bash
 claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/python /你的绝对路径/Plecs-Agent-Skill/mcp_server.py
 ```
-*💡 原理解析：执行此命令后，终端会提示 `Added stdio MCP server...` 并修改本地的 `~/.claude.json` 配置文件。这意味着该技能的专属神经元已经被系统级写入 Claude 的主板。*
 
-**⚠️ 注意：挂载成功后，请输入 `/exit` 退出当前会话，并重新运行 `claude` 重启以使配置生效！**
+### 5. 创建你的“私密机房”
 
-### 4. 创建你的“私密机房”
 为了保护你的核心研究成果（如复杂的 APF 控制系统或 Buck 变换器闭环模型），请在本项目根目录下手动创建私有文件夹：
+
 ```bash
 mkdir my_private_models
 ```
+
 将你的 `.plecs` 文件放入其中，Agent 即可安全地进行读取和调试。
 
 ---
 
 ## 🧠 Agent 核心工作准则 (System Prompt)
 
-**致读取本仓库的 AI Agent：当用户要求你调试或运行 PLECS 模型时，你必须严格遵守以下准则：**
+> **致读取本仓库的 AI Agent：**
+> 以下规则按重要性分为三层。请像遵守物理定律一样遵守**约束层**，像老练工程师一样应用**策略层**，像执行程序一样调用**行为层**。
 
-1. **原生工具优先**：你已经通过 MCP 挂载了 `load_plecs_model`, `simulate_plecs_model`, `analyze_plecs_model` 和 `update_plecs_parameter` 等原生工具。**绝对不要**尝试在终端手写 python 脚本去控制软件，请直接调用你的原生能力。
-2. **纯净数据分析**：禁止使用 `numpy`/`scipy` 等外部科学库进行数据处理，必须调用 `analyze_plecs_model` 获取官方底层的稳态或频域高精度数据。
-3. **盲区求生本能**：遇到不熟悉的 PLECS 模块报错，或忘记了底层 API 与状态机的运行逻辑时，**必须立刻停止猜测**，主动读取本地 `Reference/plecsmanual.pdf` 寻找准确答案。
-4. **捍卫代码规范**：在编写或修改任何 C-Script 控制代码前，务必先查阅 `docs/c_script_template.md` 熟悉开发者的代码风格。
+### 一、 约束层 | Constraints (绝对不可违反)
+
+> 触犯此层规则将被视为**严重系统错误**，会导致任务直接失败。
+
+| 规则编号 | 规则内容 | 违反后果 |
+|---------|---------|---------|
+| **C-01** | **禁止本地脚本控制**：不得使用 `subprocess`、`os.system`、`Popen` 或任何手写 Python 脚本直接控制 PLECS。必须通过 MCP 注册的原生工具操作。 | 直接导致底层仿真无法执行。 |
+| **C-02** | **禁止外部数据处理**：不得导入 `numpy`、`scipy`、`pandas`、`matplotlib` 等库对仿真结果进行二次计算或绘图。所有数据分析必须调用 `analyze_waveform` 工具。 | 引发严重的数据不一致与环境冲突风险。 |
+| **C-03** | **强制查阅文档**：遇到以下情况必须立即停止猜测，查阅知识库或 `Reference/plecsmanual.pdf`：1. 不熟悉的模块/报错；2. C-Script 编译失败；3. 连续两次出现相同错误。 | 陷入无限试错死循环，浪费算力。 |
+| **C-04** | **快速失败机制**：连续 3 次尝试（含查阅文档后）仍失败，必须**立即向用户报告**（包含尝试步骤、查阅章节、最后报错），请求人类协助。 | 过度消耗 Token 与时间。 |
+| **C-05** | **会话状态感知**：同一会话中若已加载模型，不得重复调用 `load_plecs_model`，除非用户明确要求切换。 | 执行无效操作，拖慢响应。 |
+
+### 二、 策略层 | Strategies (优先选择)
+
+> 在面对多个可选方案时，请优先采用以下专家级策略。
+
+| 规则编号 | 规则内容 | 适用场景 |
+|---------|---------|---------|
+| **S-01** | **批量优先**：需要测试 ≥3 个参数值时（如寻找最佳 PID 系数），优先使用 `scan_parameters` 批量工具，避免逐一调用的巨大往返开销。 | 需要测试多个参数值时 |
+| **S-02** | **先探后动**：首次操作某模型并修改参数前，必须先调用 `get_model_variables` 获取所有可调参数及其有效范围。 | 首次操作某模型时 |
+| **S-03** | **目标澄清**：遇到冲突的多目标优化（如"效率最高且纹波最小"），先询问用户权重或优先级；若无偏好，主动输出“帕累托前沿”供选择。 | 冲突的多目标优化 |
+| **S-04** | **最小输出原则**：常规任务中，除非用户要求详细日志，否则只返回**关键结论**（最优参数值、性能指标），折叠或省略中间步骤。 | 日常例行任务 |
+| **S-05** | **自然语言优先**：分析结果必须用清晰的自然语言解释，**禁止**直接向用户抛出原始数值数组或生硬的 Python 对象。 | 所有分析展示任务 |
+
+### 三、 行为层 | Behaviors (SOP 操作模板)
+
+> 常见任务的标准执行流。作为 Agent，请直接套用以下步骤模板。
+
+#### 模板 A：参数整定任务
+1. 调用 `get_model_variables` → 获取可调参数列表及范围。
+2. 向用户确认扫描参数、范围、步长（若用户指令不明确）。
+3. 调用 `scan_parameters`（推荐）或循环执行 `set_parameter` + `run_simulation_async`。
+4. 调用 `analyze_waveform` 提取目标指标（过冲、纹波、THD等）。
+5. 输出**对比表格** + 推荐参数组合 + 推荐值对应的完整性能指标。
+
+#### 模板 B：故障报错排查任务
+1. 记录完整的终端/仿真错误信息。
+2. 调用 `search_knowledge("错误关键词")` 或读取 `Reference/plecsmanual.pdf`。
+3. 根据检索结果尝试修复（修改参数 / 重写 C-Script / 调整仿真设置）。
+4. 重新运行仿真验证。
+5. **成功** → 向用户解释原因并给出预防建议；**失败** → 触发 **[ C-04 ]** 快速失败机制。
+
+#### 模板 C：常规数据分析任务
+1. 调用 `run_simulation_async` → 获取 `task_id`。
+2. 调用 `get_simulation_result` → 等待仿真完成。
+3. 执行 `analyze_waveform(metrics=["steady_state", "ripple_pp", "thd"])`。
+4. 用自然语言向用户解释结果。
+   * *示例：“输出电压稳态值为 5.02V，纹波峰峰值 48mV，THD 为 1.2%，满足设计指标。”*
+
+#### 模板 D：知识查询任务
+1. 调用 `search_knowledge("X 功能 实现方法")`。
+2. 若检索到内容：总结核心步骤，并附带引用来源（页码/章节）。
+3. 若无结果：建议用户提供更具体的关键词，或提示用户查阅手册特定章节。
+
+#### 模板 E：无报错但性能不佳（模块化调优任务）
+1. **模块级拆解**：暂停全局系统联调，将大系统拆分为独立子模块测试（如：先测开环再测闭环，先验证内环再验证外环，隔离特定滤波器）。
+2. **逐一验证**：使用 `run_simulation_async` 与 `analyze_waveform` 逐个测试各子模块的波形与响应特性。
+3. **定位瓶颈**：通过对比各模块实际输出与理论预期，找出导致整体效果差的具体故障节点（如：内环 PI 响应过慢、滤波电容参数不匹配、某段 C-Script 延迟高）。
+4. **针对性修改**：仅对定位到的问题模块使用 `set_parameter` 或重写代码进行针对性优化，避免全局盲目改参。
+5. **全局复测**：确认问题子模块指标正常后，重新联入主系统进行全局仿真，验证最终效果是否达标。
