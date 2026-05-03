@@ -14,21 +14,38 @@
 
 ## 🚀 访客指南：如何安装与挂载本技能
 
-如果你克隆（Clone）了本项目并希望在本地使用，请按以下步骤将本技能“植入”你的 Agent 大脑：
+为了保障底层环境的绝对干净，并确保 Claude 的内置服务不崩溃，请严格按照以下标准化流程将本技能“植入”你的 Agent 大脑：
 
-### 1. 环境与软件准备
-- 确保已安装 Python 3.1x，并安装 MCP 官方依赖库（需要3.10以上）：
-  ```bash
-  pip install mcp
-  ```
+### 1. 环境与底层依赖准备
+除了必须开启的仿真软件接口外，你需要确保系统底层组件的完整：
 - **开启 PLECS 控制通道 (必做)**：打开 PLECS Standalone -> 菜单栏 `Preferences` -> `General` 选项卡 -> 勾选 `RPC interface port` 并将其设置为 `1080`。
+- **配置 Claude 底层环境 (重要)**：Claude Code 自身的部分内置模块（如历史记忆）强依赖于 `Node.js` 和 `Bun`。若你使用 macOS，强烈建议通过 Homebrew 提前装好它们以防报错：
+  ```bash
+  brew install node
+  brew install bun
+  ```
 
-### 2. 接入 Claude Code (MCP 挂载)
-在你的终端中执行以下命令（请务必将路径替换为你本机的绝对路径）：
+### 2. 创建独立运行环境与安装依赖
+为了不污染系统的全局 Python，且防止后续 Agent 找不到 `mcp` 库，**本工程建议使用虚拟环境**。请在项目根目录下依次执行：
 ```bash
-claude mcp add plecs-skill python /你的绝对路径/Plecs-Agent-Skill/mcp_server.py
+# 1. 创建名为 .venv 的虚拟环境 (需 Python 3.10+)
+python3 -m venv .venv
+
+# 2. 激活虚拟环境 (Windows 用户请使用 .venv\Scripts\activate)
+source .venv/bin/activate
+
+# 3. 安装mcp包
+pip install mcp
 ```
-*💡 原理解析：执行此命令后，终端会提示 `Added stdio MCP server...` 并修改本地的 `~/.claude.json` 配置文件。这意味着该技能已经被系统级写入 Claude 的主板。*
+
+### 3. 接入 Claude Code (绝对路径挂载)
+由于 Claude 在底层调用时不会自动识别你的虚拟环境，**必须**使用虚拟环境内部 Python 的绝对路径来进行“挂载”。
+
+在你的终端中执行以下命令（⚠️ **务必将 `/你的绝对路径/` 替换为你本机的实际路径**）：
+```bash
+claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/python /你的绝对路径/Plecs-Agent-Skill/mcp_server.py
+```
+*💡 原理解析：执行此命令后，终端会提示 `Added stdio MCP server...` 并修改本地的 `~/.claude.json` 配置文件。这意味着该技能的专属神经元已经被系统级写入 Claude 的主板。*
 
 **⚠️ 注意：挂载成功后，请输入 `/exit` 退出当前会话，并重新运行 `claude` 重启以使配置生效！**
 
