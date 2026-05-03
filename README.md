@@ -49,7 +49,7 @@ claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/pytho
 
 **⚠️ 注意：挂载成功后，请输入 `/exit` 退出当前会话，并重新运行 `claude` 重启以使配置生效！**
 
-### 3. 创建你的“私密机房”
+### 4. 创建你的“私密机房”
 为了保护你的核心研究成果（如复杂的 APF 控制系统或 Buck 变换器闭环模型），请在本项目根目录下手动创建私有文件夹：
 ```bash
 mkdir my_private_models
