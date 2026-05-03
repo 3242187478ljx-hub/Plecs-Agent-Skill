@@ -11,33 +11,26 @@
 依赖安装：无需额外依赖（仅使用 Python 标准库）
 
 使用示例：
-    from logger import SimulationLogger
+    from module_logger.logger import get_logger
     
-    logger = SimulationLogger(log_dir="./logs")
+    logger = get_logger()
     
     # 记录工具调用
     logger.log_tool_call("set_parameter", {"param_name": "R_load", "value": 10.0}, "成功", True)
-    
-    # 记录仿真任务
-    logger.log_simulation_task("task_123", "pending", {"duration": 0.01})
-    logger.log_simulation_task("task_123", "completed", None, result={"voltage": 5.0})
-    
-    # 获取统计信息
-    stats = logger.analyze_stats()
-    
-    # 获取优化建议
-    suggestions = logger.suggest_optimizations()
 """
 
 import json
 import os
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from threading import Lock
-import traceback
 
+# ==================== 路径自动对齐 ====================
+# 获取当前 logger.py 所在的目录，并拼接 logs 子文件夹路径
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_LOG_DIR = os.path.join(BASE_DIR, "logs")
+# ======================================================
 
 class SimulationLogger:
     """仿真日志记录器"""
@@ -48,12 +41,12 @@ class SimulationLogger:
     # 日志格式版本
     LOG_VERSION = "2.0"
     
-    def __init__(self, log_dir: str = "./logs", retention_days: int = DEFAULT_RETENTION_DAYS):
+    def __init__(self, log_dir: str = DEFAULT_LOG_DIR, retention_days: int = DEFAULT_RETENTION_DAYS):
         """
         初始化日志记录器
         
         参数:
-            log_dir: 日志存储目录
+            log_dir: 日志存储目录 (默认自动指向 module_logger/logs)
             retention_days: 日志保留天数
         """
         self.log_dir = Path(log_dir)
@@ -129,17 +122,7 @@ class SimulationLogger:
     def log_tool_call(self, tool_name: str, parameters: Dict, 
                       result_summary: str, success: bool, 
                       duration_ms: float = None, error_message: str = None):
-        """
-        记录工具调用
-        
-        参数:
-            tool_name: 工具名称
-            parameters: 调用参数
-            result_summary: 结果摘要
-            success: 是否成功
-            duration_ms: 执行耗时（毫秒）
-            error_message: 错误信息（如果失败）
-        """
+        """记录工具调用"""
         entry = {
             "type": "tool_call",
             "timestamp": datetime.now().isoformat(),
@@ -147,18 +130,16 @@ class SimulationLogger:
             "tool": tool_name,
             "parameters": self._sanitize_parameters(parameters),
             "success": success,
-            "result_summary": result_summary[:500] if result_summary else ""  # 限制摘要长度
+            "result_summary": result_summary[:500] if result_summary else ""
         }
         
         if duration_ms is not None:
             entry["duration_ms"] = duration_ms
         
         if error_message:
-            entry["error"] = error_message[:1000]  # 限制错误信息长度
+            entry["error"] = error_message[:1000]
         
         self._write_log_entry(entry)
-        
-        # 使缓存失效
         self._stats_cache = None
     
     def log_simulation_task(self, task_id: str, status: str, 
@@ -166,17 +147,7 @@ class SimulationLogger:
                             result: Dict = None, 
                             error: str = None,
                             progress: float = None):
-        """
-        记录仿真任务状态变化
-        
-        参数:
-            task_id: 任务ID
-            status: 状态 (pending, running, completed, failed, cancelled)
-            parameters: 任务参数
-            result: 任务结果
-            error: 错误信息
-            progress: 进度 (0-100)
-        """
+        """记录仿真任务状态变化"""
         entry = {
             "type": "simulation_task",
             "timestamp": datetime.now().isoformat(),
@@ -199,15 +170,7 @@ class SimulationLogger:
     
     def log_system_event(self, event_type: str, message: str, 
                          details: Dict = None, level: str = "INFO"):
-        """
-        记录系统事件
-        
-        参数:
-            event_type: 事件类型 (startup, shutdown, config_change, error)
-            message: 事件消息
-            details: 详细信息
-            level: 日志级别 (INFO, WARNING, ERROR)
-        """
+        """记录系统事件"""
         entry = {
             "type": "system_event",
             "timestamp": datetime.now().isoformat(),
@@ -223,13 +186,9 @@ class SimulationLogger:
         self._write_log_entry(entry)
     
     def _sanitize_parameters(self, params: Dict) -> Dict:
-        """
-        清理参数中的敏感信息
-        避免记录过长的参数值
-        """
+        """清理参数中的敏感或过长信息"""
         if not params:
             return {}
-        
         sanitized = {}
         for key, value in params.items():
             if isinstance(value, str) and len(value) > 200:
@@ -238,14 +197,12 @@ class SimulationLogger:
                 sanitized[key] = f"[{type(value).__name__} with {len(str(value))} chars]"
             else:
                 sanitized[key] = value
-        
         return sanitized
     
     def _sanitize_result(self, result: Dict) -> Dict:
         """清理结果中的过长数据"""
         if not result:
             return {}
-        
         sanitized = {}
         for key, value in result.items():
             if isinstance(value, str) and len(value) > 500:
@@ -254,33 +211,21 @@ class SimulationLogger:
                 sanitized[key] = f"[{type(value).__name__} with {len(str(value))} chars]"
             else:
                 sanitized[key] = value
-        
         return sanitized
     
     def analyze_stats(self, session_id: str = None) -> Dict:
-        """
-        分析统计信息
-        
-        参数:
-            session_id: 指定会话ID，默认当前会话
-        
-        返回:
-            统计信息字典
-        """
-        # 检查缓存
+        """分析统计信息"""
         if self._stats_cache is not None:
             return self._stats_cache
         
-        if session_id:
-            log_file = self.log_dir / f"session_{session_id}.jsonl"
-        else:
-            log_file = self._get_session_file()
+        session_id = session_id or self.current_session_id
+        log_file = self.log_dir / f"session_{session_id}.jsonl"
         
         if not log_file.exists():
             return {"error": f"日志文件不存在: {log_file.name}"}
         
         stats = {
-            "session_id": session_id or self.current_session_id,
+            "session_id": session_id,
             "total_tool_calls": 0,
             "successful_tool_calls": 0,
             "failed_tool_calls": 0,
@@ -294,14 +239,12 @@ class SimulationLogger:
         }
         
         tool_durations = {}
-        tool_call_counts = {}
         
         try:
             with open(log_file, 'r', encoding='utf-8') as f:
                 for line in f:
                     if not line.strip():
                         continue
-                    
                     try:
                         entry = json.loads(line)
                         stats["logs_analyzed"] += 1
@@ -309,53 +252,41 @@ class SimulationLogger:
                         if entry.get("type") == "tool_call":
                             stats["total_tool_calls"] += 1
                             tool_name = entry.get("tool", "unknown")
-                            
-                            # 工具使用统计
                             stats["tool_usage"][tool_name] = stats["tool_usage"].get(tool_name, 0) + 1
                             
-                            # 成功/失败统计
                             if entry.get("success"):
                                 stats["successful_tool_calls"] += 1
                             else:
                                 stats["failed_tool_calls"] += 1
                                 error_msg = entry.get("error", "未知错误")
-                                # 提取错误类型
                                 error_type = error_msg[:50] if error_msg else "unknown"
                                 stats["error_counts"][error_type] = stats["error_counts"].get(error_type, 0) + 1
                             
-                            # 耗时统计
                             duration = entry.get("duration_ms")
                             if duration is not None:
                                 if tool_name not in tool_durations:
                                     tool_durations[tool_name] = []
-                                    tool_call_counts[tool_name] = 0
                                 tool_durations[tool_name].append(duration)
-                                tool_call_counts[tool_name] += 1
                         
                         elif entry.get("type") == "simulation_task":
                             stats["total_simulations"] += 1
                             status = entry.get("status", "unknown")
                             stats["simulation_status"][status] = stats["simulation_status"].get(status, 0) + 1
-                    
+                            
                     except json.JSONDecodeError:
                         continue
             
-            # 计算平均耗时
             for tool_name, durations in tool_durations.items():
                 if durations:
                     avg_duration = sum(durations) / len(durations)
                     stats["average_duration_ms"][tool_name] = round(avg_duration, 2)
             
-            # 计算成功率
             if stats["total_tool_calls"] > 0:
-                stats["success_rate"] = round(
-                    stats["successful_tool_calls"] / stats["total_tool_calls"] * 100, 2
-                )
+                stats["success_rate"] = round(stats["successful_tool_calls"] / stats["total_tool_calls"] * 100, 2)
             else:
                 stats["success_rate"] = 0.0
             
-            # 获取会话时长
-            meta_file = self.log_dir / f"session_{session_id}_meta.json" if session_id else self._get_meta_file()
+            meta_file = self.log_dir / f"session_{session_id}_meta.json"
             if meta_file.exists():
                 try:
                     with open(meta_file, 'r') as f:
@@ -368,48 +299,36 @@ class SimulationLogger:
                             stats["session_duration_seconds"] = round((end_time - start_time).total_seconds(), 2)
                 except:
                     pass
-        
+                    
         except Exception as e:
             stats["error"] = f"分析日志失败: {e}"
         
-        # 缓存结果
         self._stats_cache = stats
         return stats
     
     def suggest_optimizations(self, session_id: str = None) -> List[str]:
-        """
-        基于日志分析给出优化建议
-        
-        返回:
-            优化建议列表
-        """
+        """基于日志分析给出优化建议"""
         stats = self.analyze_stats(session_id)
         suggestions = []
         
-        # 检查是否有足够的数据
         if stats.get("total_tool_calls", 0) < 10:
             suggestions.append("数据量较少（少于10次调用），建议积累更多数据后再分析优化方向")
             return suggestions
         
-        # 1. 高错误率工具
-        tool_usage = stats.get("tool_usage", {})
         error_counts = stats.get("error_counts", {})
         total_errors = sum(error_counts.values())
         
         if total_errors > stats.get("total_tool_calls", 1) * 0.3:
-            suggestions.append(f"整体错误率较高（{stats.get('success_rate', 100)}% 成功率），建议检查 RPC 连接和参数格式")
+            suggestions.append(f"整体错误率较高（成功率 {stats.get('success_rate', 100)}%），建议检查 RPC 连接和参数格式")
         
-        # 检查具体工具的错误率
-        # 需要重新分析每个工具的错误情况
-        log_file = self.log_dir / f"session_{session_id or self.current_session_id}.jsonl"
+        session_id = session_id or self.current_session_id
+        log_file = self.log_dir / f"session_{session_id}.jsonl"
         if log_file.exists():
             tool_errors = {}
             tool_calls = {}
-            
             with open(log_file, 'r', encoding='utf-8') as f:
                 for line in f:
-                    if not line.strip():
-                        continue
+                    if not line.strip(): continue
                     try:
                         entry = json.loads(line)
                         if entry.get("type") == "tool_call":
@@ -426,25 +345,19 @@ class SimulationLogger:
                 if error_rate > 30 and total >= 5:
                     suggestions.append(f"工具 '{tool}' 错误率较高（{error_rate:.1f}%），建议检查该工具的调用方式和参数")
         
-        # 2. 耗时过长的工具
         avg_durations = stats.get("average_duration_ms", {})
         for tool, duration in avg_durations.items():
-            if duration > 5000:  # 超过5秒
+            if duration > 5000:
                 suggestions.append(f"工具 '{tool}' 平均耗时 {duration}ms，建议优化或使用异步模式")
         
-        # 3. 重复的参数扫描
         if stats.get("total_simulations", 0) > 20:
             suggestions.append("检测到多次仿真任务，建议使用参数扫描批量工具以提高效率")
         
-        # 4. 大量连续单参数设置
         tool_usage = stats.get("tool_usage", {})
         single_sets = tool_usage.get("set_parameter", 0)
         batch_sets = tool_usage.get("set_parameters_batch", 0)
         if single_sets > 10 and batch_sets == 0:
             suggestions.append(f"检测到 {single_sets} 次单参数设置，建议使用 set_parameters_batch 批量设置提高效率")
-        
-        # 5. 搜索结果为空的情况
-        # 需要额外分析 search_knowledge 工具的效果
         
         if not suggestions:
             suggestions.append("当前使用情况良好，暂无优化建议")
@@ -452,20 +365,9 @@ class SimulationLogger:
         return suggestions
     
     def export_session(self, session_id: str = None, output_path: str = None) -> str:
-        """
-        导出会话日志
-        
-        参数:
-            session_id: 会话ID，默认当前会话
-            output_path: 输出文件路径，默认返回JSON字符串
-        
-        返回:
-            导出的JSON字符串或文件路径
-        """
-        if session_id:
-            log_file = self.log_dir / f"session_{session_id}.jsonl"
-        else:
-            log_file = self._get_session_file()
+        """导出会话日志"""
+        session_id = session_id or self.current_session_id
+        log_file = self.log_dir / f"session_{session_id}.jsonl"
         
         if not log_file.exists():
             return json.dumps({"error": f"日志文件不存在: {log_file.name}"})
@@ -481,7 +383,7 @@ class SimulationLogger:
         
         export_data = {
             "exported_at": datetime.now().isoformat(),
-            "session_id": session_id or self.current_session_id,
+            "session_id": session_id,
             "log_version": self.LOG_VERSION,
             "total_entries": len(logs),
             "logs": logs
@@ -497,32 +399,21 @@ class SimulationLogger:
             return json.dumps(export_data, indent=2, ensure_ascii=False)
     
     def get_recent_errors(self, limit: int = 10) -> List[Dict]:
-        """
-        获取最近的错误记录
-        
-        参数:
-            limit: 返回的最大记录数
-        
-        返回:
-            错误记录列表
-        """
+        """获取最近的错误记录"""
         errors = []
         log_file = self._get_session_file()
         
         if not log_file.exists():
             return errors
         
-        # 从文件末尾读取（最近的在后面）
         with open(log_file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
         for line in reversed(lines):
             if len(errors) >= limit:
                 break
-            
             if not line.strip():
                 continue
-            
             try:
                 entry = json.loads(line)
                 if entry.get("type") == "tool_call" and not entry.get("success"):
@@ -540,7 +431,6 @@ class SimulationLogger:
                     })
             except:
                 continue
-        
         return errors
     
     def close(self):
@@ -548,27 +438,21 @@ class SimulationLogger:
         self._save_meta()
         print(f"✓ 日志会话已关闭: {self.current_session_id}")
 
-
-# 全局日志单例（可选）
+# 全局日志单例
 _default_logger: Optional[SimulationLogger] = None
 
-
-def get_logger(log_dir: str = "./logs") -> SimulationLogger:
+def get_logger() -> SimulationLogger:
     """获取全局日志记录器实例（单例模式）"""
     global _default_logger
     if _default_logger is None:
-        _default_logger = SimulationLogger(log_dir)
+        _default_logger = SimulationLogger()
     return _default_logger
 
-
 # ==================== 命令行入口 ====================
-
 def main():
-    """命令行入口，用于查看日志统计"""
     import argparse
-    
     parser = argparse.ArgumentParser(description="PLECS MCP 日志分析工具")
-    parser.add_argument("--log-dir", default="./logs", help="日志目录路径")
+    parser.add_argument("--log-dir", default=DEFAULT_LOG_DIR, help="日志目录路径")
     parser.add_argument("--session", help="指定会话ID")
     parser.add_argument("--stats", action="store_true", help="显示统计信息")
     parser.add_argument("--suggest", action="store_true", help="显示优化建议")
@@ -576,7 +460,6 @@ def main():
     parser.add_argument("--export", help="导出会话日志到指定文件")
     
     args = parser.parse_args()
-    
     logger = SimulationLogger(log_dir=args.log_dir)
     
     if args.stats:
@@ -588,7 +471,7 @@ def main():
         print("\n优化建议:")
         for i, s in enumerate(suggestions, 1):
             print(f"  {i}. {s}")
-    
+            
     if args.errors:
         errors = logger.get_recent_errors(args.errors)
         if errors:
@@ -597,14 +480,12 @@ def main():
                 print(f"  [{e.get('timestamp', 'N/A')}] {e.get('tool', 'system')}: {e.get('error', 'unknown')[:100]}")
         else:
             print("\n暂无错误记录")
-    
+            
     if args.export:
         output = logger.export_session(args.session, args.export)
         print(f"日志已导出到: {output}")
-    
+        
     logger.close()
 
-
 if __name__ == "__main__":
-    import json
     main()
