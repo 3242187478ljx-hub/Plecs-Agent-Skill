@@ -53,16 +53,16 @@ pip install chromadb sentence-transformers PyPDF2
 如果你在上一步安装了 RAG 依赖，**必须**执行初始化命令，让程序解析手册并建立本地向量数据库。请确保 `Reference/` 目录下已有官方的 `plecsmanual.pdf`，然后在激活的虚拟环境中执行：
 
 ```bash
-python -m module_rag.rag_knowledge index
+python -m Module_rag.Rag_knowledge index
 ```
-* 此步骤执行完毕后，生成的向量数据库将封存在 `module_rag/chroma_db/` 中。*
+* 此步骤执行完毕后，生成的向量数据库将封存在 `Module_Rag/chroma_db/` 中。*
 
 ### 4. 接入 Claude Code (绝对路径挂载)
 
 由于 Claude 在底层调用时不会自动识别你的虚拟环境，你必须使用虚拟环境内部 Python 的绝对路径来进行“硬挂载”。 在你的终端中执行以下命令（⚠️ 务必将 `/你的绝对路径/` 替换为你本机的实际路径）：
 
 ```bash
-claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/python /你的绝对路径/Plecs-Agent-Skill/module_mcp/mcp_server.py
+claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/python /你的绝对路径/Plecs-Agent-Skill/Module_Mcp/mcp_server.py
 ```
 *⚠️ 注意路径已更新为指向 `module_mcp` 文件夹下的服务端脚本。挂载成功后请重启 Claude 会话！*
 
