@@ -1217,7 +1217,12 @@ async def main():
             write_stream,
             InitializationOptions(
                 server_name="plecs-mcp-server-v2",
-                server_version="2.0.0"
+                server_version="2.0.0",
+                capabilities=app.get_capabilities(
+                    initialization_options=types.ServerCapabilities(
+                        tools={}
+                    )
+                )
             )
         )
 
