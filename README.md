@@ -8,7 +8,9 @@
 
 ## 📁 极简架构导航
 
-* `mcp_server.py`：核心 MCP 服务端脚本（负责将 PLECS RPC 接口注册为 Claude 原生工具）。
+* `Module_Mcp/`：核心 MCP 服务端模块（包含 `mcp_server.py`，负责将 PLECS 接口注册为 Claude 原生工具）。
+* `Module_Logger/`：全局日志模块（包含 `logger.py`，自动拦截并记录工具调用、错误溯源与耗时分析）。
+* `Module_Rag/`：知识检索增强模块（包含 `rag_knowledge.py`，负责 PDF 官方手册的向量化切片与本地检索）。
 * `docs/c_script_template.md`：PLECS C-Script 编写规范（防幻觉模板，强制 Agent 输出高质量控制代码）。
 * `Reference/`：公共参考资料库（建议放入官方 `plecsmanual.pdf` 供 Agent 随时查阅）。
 * `my_private_models/`：本地私密模型保险箱（受 `.gitignore` 保护，存放你的核心工程文件，绝不上传云端）。
@@ -51,16 +53,18 @@ pip install chromadb sentence-transformers PyPDF2
 如果你在上一步安装了 RAG 依赖，**必须**执行初始化命令，让程序解析手册并建立本地向量数据库。请确保 `Reference/` 目录下已有官方的 `plecsmanual.pdf`，然后在激活的虚拟环境中执行：
 
 ```bash
-python -c "from rag_knowledge import PlecsRAG; rag = PlecsRAG(); rag.index_documents(['Reference/plecsmanual.pdf'])"
+python -m module_rag.rag_knowledge index
 ```
+* 此步骤执行完毕后，生成的向量数据库将封存在 `module_rag/chroma_db/` 中。*
 
 ### 4. 接入 Claude Code (绝对路径挂载)
 
 由于 Claude 在底层调用时不会自动识别你的虚拟环境，你必须使用虚拟环境内部 Python 的绝对路径来进行“硬挂载”。 在你的终端中执行以下命令（⚠️ 务必将 `/你的绝对路径/` 替换为你本机的实际路径）：
 
 ```bash
-claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/python /你的绝对路径/Plecs-Agent-Skill/mcp_server.py
+claude mcp add plecs-skill /你的绝对路径/Plecs-Agent-Skill/.venv/bin/python /你的绝对路径/Plecs-Agent-Skill/module_mcp/mcp_server.py
 ```
+*⚠️ 注意路径已更新为指向 `module_mcp` 文件夹下的服务端脚本。挂载成功后请重启 Claude 会话！*
 
 ### 5. 创建你的“私密机房”
 
