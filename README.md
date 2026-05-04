@@ -53,7 +53,7 @@ pip install chromadb sentence-transformers PyPDF2
 如果你在上一步安装了 RAG 依赖，**必须**执行初始化命令，让程序解析手册并建立本地向量数据库。请确保 `Reference/` 目录下已有官方的 `plecsmanual.pdf`，然后在激活的虚拟环境中执行：
 
 ```bash
-python -m Module_rag.Rag_knowledge index
+python -m Module_Rag.rag_knowledge index
 ```
 * 此步骤执行完毕后，生成的向量数据库将封存在 `Module_Rag/chroma_db/` 中。*
 
